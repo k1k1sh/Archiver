@@ -112,33 +112,44 @@ void _pack(int archive, char* src_path) {
 
 void _pack_info(int fd, path_type p_type, char* path) {
 
+    // Тип файла
+    int type = (int) p_type;
+
     // Флаг ошибки
     int error = 1;
 
     do {
-
-
-        // Записываем длину пути
-        int file_path_len = strlen(path) + 1;
-        if (write(fd, &file_path_len, sizeof(int)) != sizeof(int)) {
-            printf("Ошибка. Невозможно записать длину пути в архив.\n");
+        // Записываем тип (папка или файл)
+        if (write(fd, &type, sizeof(int)) != sizeof(int)) {
+            printf("Ошибка. Невозможно записать тип файла в архив\n");
             break;
         }
 
-        // Записываем путь файла
-        if (write(fd, path, file_path_len) != file_path_len) {
-            printf("Ошибка. Невозможно записать путь в архив.\n");
-            break;
-        }
+        do {
 
-        error = 0;
-    } while (0);
 
-    if (error) {
-        if (close(fd) == -1) {
-            printf("Ошибка. Невозможно закрыть архив.\n");
+            // Записываем длину пути
+            int file_path_len = strlen(path) + 1;
+            if (write(fd, &file_path_len, sizeof(int)) != sizeof(int)) {
+                printf("Ошибка. Невозможно записать длину пути в архив.\n");
+                break;
+            }
+
+            // Записываем путь файла
+            if (write(fd, path, file_path_len) != file_path_len) {
+                printf("Ошибка. Невозможно записать путь в архив.\n");
+                break;
+            }
+
+            error = 0;
+        } while (0);
+
+        if (error) {
+            if (close(fd) == -1) {
+                printf("Ошибка. Невозможно закрыть архив.\n");
+            }
+            exit(1);
         }
-        exit(1);
     }
 }
 
@@ -212,6 +223,164 @@ void _pack_content(int fd, char* path) {
     }
 }
 
+void unpack(char* archive_path, char* out_file) {
+    int error = 1;            // Флаг ошибка
+    int archive, file;        // Файловые дискрипторы
+    char meta[META_LENGTH];   // Буфер для мета данных
+    int root_dir_len;         // Length of name of root directory for replacing
+    int type;                 // тип файла
+    char* path = NULL;        // Буфер для пути
+    int path_len;             // Длина пути файла
+    char content_byte;        // Буфер для чтения данных
+    int content_len;          // Буфер для длины считываемых данных
+    int read_status;          // Статус считываемого
+    int write_status;         // Статус записываемого
+
+    // Пытаемся открыть файл
+    archive = open(archive_path, O_RDONLY);
+    if (archive == -1) {
+        printf("Ошибка. Невозможно открыть %s.\n", archive_path);
+        exit(1);
+    }
+
+    do {
+        // считываем метаданные и сравниваем их
+        if (read(archive, &meta, META_LENGTH) != META_LENGTH || strcmp(meta, META) != 0) {
+            printf("Ошибка. %s не архив.\n", archive_path);
+            break;
+        }
+
+        // Считываем длину директории
+        if (read(archive, &root_dir_len, sizeof(int)) != sizeof(int)) {
+            printf("Ошибка. Невозможно считать длину директории %s.\n", archive_path);
+            break;
+        }
+
+        error = 0;
+    } while (0);
+
+    if (error) {
+        close(archive);
+        exit(0);
+    }
+
+    // Начинаем получать файлы из архива
+    while (read(archive, &type, sizeof(int)) == sizeof(int)) {
+        error = 1;
+
+        // Считываем длину
+        if (read(archive, &path_len, sizeof(int)) != sizeof(int)) {
+            printf("Ошибка. Невозможно считать длину пути из %s.\n", archive_path);
+            break;
+        }
+
+        // Выделием память для пути
+        path = (char*)malloc(path_len);
+        if (path == NULL) {
+            printf("Ошибка. Невозможно выделить память для пути с длинной %lu.\n", path_len);
+            break;
+        }
+
+        // Считываем путь из архива
+        if (read(archive, path, path_len) != path_len) {
+            printf("Ошибка. Невозможно считать путь из архива %s.\n", archive_path);
+            free(path);
+            break;
+        }
+
+        path = _rename_root(path, root_dir_len, out_file);
+        if (path == NULL) {
+            printf("Ошибка. Невозможно распокавать архив с новым именем.\n");
+            break;
+        }
+
+        // Если путь уже существует
+        if (access(path, F_OK) != -1) {
+            printf("Ошибка. Невозможно распаковать. %s уже существует.\n", path);
+            free(path);
+            break;
+        }
+
+        if ((path_type)type == FILE_NAME) {
+            // Получаем длину содержимого файла
+            if (read(archive, &content_len, sizeof(int)) != sizeof(int)) {
+                printf("Ошибка. Невозможно считать длину содержимого файла из %s.\n", archive_path);
+                free(path);
+                break;
+            }
+
+            // Открытие файла для записи
+            file = open(path, O_CREAT | O_WRONLY, S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH);
+            if (file == -1) {
+                printf("Ошибка. Невозможно создать %s.\n", path);
+                free(path);
+                break;
+            }
+
+            // Запись содержимого
+            for (sizeof(int) num_bytes = 0; num_bytes < content_len; num_bytes++) {
+                read_status = read(archive, &content_byte, 1);
+                write_status = write(file, &content_byte, 1);
+
+                // Отлов ошибок
+                if (read_status != 1 || write_status != 1) {
+                    printf("Ошибка. Невозможно записать данные из %s.\n", archive_path);
+
+                    if (close(file) == -1) {
+                        printf("Ошибка. Невозможно закрыть %s.\n", path);
+                    }
+
+                    if (close(archive) == -1) {
+                        printf("Ошибка. Невозможно закрыть %s.\n", archive_path);
+                    }
+
+                    free(path);
+
+                    exit(1);
+                }
+            }
+
+            // Эхо печать
+            printf("Распаковано %s\n", path);
+
+            // Закрытие файлового дескриптора
+            if (close(file) == -1) {
+                printf("Ошибка. Невозможно закрыть %s.\n", path);
+                free(path);
+                break;
+            }
+        }
+
+        if ((path_type)type == FOLDER_NAME) {
+            // Создаем новую директорию
+            if (mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO) == -1) {
+                printf("Ошибка, невозможно создать %s.\n", path);
+                free(path);
+                break;
+            }
+        }
+
+        free(path);
+
+        error = 0;
+    }
+
+    if (close(archive) == -1) {
+        printf("Ошибка. Невозможно закрыть %s.\n", archive_path);
+        exit(0);
+    }
+
+    // Exit if error
+    if (error) {
+        exit(1);
+    }
+
+    // New line for pretty printing
+    printf("\n");
+}
+
+
+
 void _remove_extra_slash(char* path) {
     int i = 0;
     int renamed_len = strlen(path);
@@ -229,6 +398,31 @@ void _remove_extra_slash(char* path) {
         }
     }
 }
+
+    char* _rename_root(char* path, int old_root_len, char* new_root) {
+
+        int trimmed_path_len = strlen(path) - old_root_len;
+        int new_root_len = strlen(new_root);
+
+        char* renamed = (char*)malloc(new_root_len + trimmed_path_len + 2);
+
+        if (renamed == NULL) {
+            free(path);
+            return NULL;
+        }
+
+        memcpy(renamed, new_root, new_root_len);
+        renamed[new_root_len++] = '/';
+
+        memcpy(renamed + new_root_len, path + old_root_len, trimmed_path_len);
+        renamed[new_root_len + trimmed_path_len] = '\0';
+
+        _remove_extra_slash(renamed);
+
+        free(path);
+
+        return renamed;
+    }
 
 
 
