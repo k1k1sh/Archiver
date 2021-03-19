@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 
-#include "../archiver.h"
+#include "archiver.h"
 
 void pack(char* dir_path, char* archive_path) {
     int archive;      // Дескриптор архива
