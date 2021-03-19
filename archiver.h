@@ -15,6 +15,6 @@ void _pack_info(int fd, path_type p_type, char* path);
 void _pack_content(int fd, char* path);
 
 void unpack(char* archive_path, char* out_path);
-char* _rename_root(char* path, u64 old_root_len, char* new_root);
+char* _rename_root(char* path, int old_root_len, char* new_root);
 
 void _remove_extra_slash(char* path);

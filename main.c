@@ -33,6 +33,6 @@ int main(int argc, char** argv) {
     }
 
 
-	printf("Успешно.")
+	printf("Успешно.");
 	return 0;
 }

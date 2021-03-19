@@ -173,7 +173,7 @@ void _pack_content(int fd, char* path) {
         }
 
         // Записываем размер содержимого
-        if (write(fd, &file_size, u64sz) != u64sz) {
+        if (write(fd, &file_size, sizeof(int)) != sizeof(int)) {
             printf("Ошибка. Невозможно записать размер %s в архив.\n", path);
             break;
         }
