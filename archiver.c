@@ -125,23 +125,20 @@ void _pack_info(int fd, path_type p_type, char* path) {
             break;
         }
 
-        do {
+        // Записываем длину пути
+        int file_path_len = strlen(path) + 1;
+        if (write(fd, &file_path_len, sizeof(int)) != sizeof(int)) {
+        printf("Ошибка. Невозможно записать длину пути в архив.\n");
+            break;
+        }
 
+        // Записываем путь файла
+        if (write(fd, path, file_path_len) != file_path_len) {
+            printf("Ошибка. Невозможно записать путь в архив.\n");
+            break;
+        }
 
-            // Записываем длину пути
-            int file_path_len = strlen(path) + 1;
-            if (write(fd, &file_path_len, sizeof(int)) != sizeof(int)) {
-                printf("Ошибка. Невозможно записать длину пути в архив.\n");
-                break;
-            }
-
-            // Записываем путь файла
-            if (write(fd, path, file_path_len) != file_path_len) {
-                printf("Ошибка. Невозможно записать путь в архив.\n");
-                break;
-            }
-
-            error = 0;
+        error = 0;
         } while (0);
 
         if (error) {
@@ -150,7 +147,7 @@ void _pack_info(int fd, path_type p_type, char* path) {
             }
             exit(1);
         }
-    }
+    
 }
 
 void _pack_content(int fd, char* path) {
@@ -277,7 +274,7 @@ void unpack(char* archive_path, char* out_file) {
         // Выделием память для пути
         path = (char*)malloc(path_len);
         if (path == NULL) {
-            printf("Ошибка. Невозможно выделить память для пути с длинной %lu.\n", path_len);
+            printf("Ошибка. Невозможно выделить память для пути с длинной %i.\n", path_len);
             break;
         }
 
@@ -318,7 +315,7 @@ void unpack(char* archive_path, char* out_file) {
             }
 
             // Запись содержимого
-            for (sizeof(int) num_bytes = 0; num_bytes < content_len; num_bytes++) {
+            for (int num_bytes = 0; num_bytes < content_len; num_bytes++) {
                 read_status = read(archive, &content_byte, 1);
                 write_status = write(file, &content_byte, 1);
 
