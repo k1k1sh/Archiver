@@ -213,12 +213,12 @@ void _pack_content(int fd, char* path) {
 }
 
 void _remove_extra_slash(char* path) {
-    u64 i = 0;
-    u64 renamed_len = strlen(path);
+    int i = 0;
+    int renamed_len = strlen(path);
 
     while (i < renamed_len) {
         if((path[i] == '/') && (path[i + 1] == '/')) {
-            for(u64 k = i + 1; k < renamed_len; k++) {
+            for(int k = i + 1; k < renamed_len; k++) {
                 path[k] = path[k + 1];
             }
 
