@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
     if (strcmp(action, "--pack") == 0) {
         pack(source, output);
     } else {
-        //unpack(source, output);
+        unpack(source, output);
     }
 
 
